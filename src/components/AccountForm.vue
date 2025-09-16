@@ -111,6 +111,10 @@
 </template>
 
 <script setup lang="ts">
+import { useAccountStore } from "@/stores/accountStore";
+
+const accountStore = useAccountStore();
+
 // Опции для типа записи
 const recordTypes = [
     { title: "Локальная", value: "Локальная" },
