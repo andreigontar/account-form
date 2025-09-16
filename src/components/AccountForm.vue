@@ -167,12 +167,10 @@ const recordTypes = [
     { title: "LDAP", value: "LDAP" },
 ];
 
-// Получение списка учетных записей
-const accounts = computed(() => accountStore.accounts);
+const accounts = computed(() => accountStore.getAllAccounts());
 
-// Инициализация данных формы
 const initializeFormData = () => {
-    accountStore.accounts.forEach((account) => {
+    accountStore.getAllAccounts().forEach((account) => {
         const data = accountStore.getFormData(account.id);
         if (data) {
             formData[account.id] = { ...data };

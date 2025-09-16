@@ -3,36 +3,66 @@ import { ref, computed } from "vue";
 import type { AccountRecord, AccountFormData, AccountLabel, UpdateAccountResult } from "@/types/account";
 
 export const useAccountStore = defineStore("account", () => {
-    const accounts = ref<AccountRecord[]>([]);
-    const accountsCount = computed(() => accounts.value.length);
+
+    const accounts = ref<Map<string, AccountRecord>>(new Map());
+    const parseLabelsCache = new Map<string, AccountLabel[]>();
+    
+    // Helper методы для работы с Map
+    const getAccount = (id: string): AccountRecord | undefined => {
+        return accounts.value.get(id);
+    };
+    
+    const getAllAccounts = (): AccountRecord[] => {
+        return Array.from(accounts.value.values());
+    };
+    
+    const getAccountsCount = (): number => {
+        return accounts.value.size;
+    };
+    
+    const hasAccount = (id: string): boolean => {
+        return accounts.value.has(id);
+    };
 
     // Загрузка данных из localStorage при инициализации
     const loadAccounts = (): void => {
         const saved = localStorage.getItem("accounts");
         if (saved) {
             try {
-                accounts.value = JSON.parse(saved);
+                const accountsArray = JSON.parse(saved);
+                accounts.value = new Map(accountsArray.map((account: AccountRecord) => [account.id, account]));
             } catch (error) {
                 console.error("Ошибка загрузки данных:", error);
-                accounts.value = [];
+                accounts.value = new Map();
             }
         }
     };
 
     // Сохранение данных в localStorage
     const saveAccounts = (): void => {
-        localStorage.setItem("accounts", JSON.stringify(accounts.value));
+        localStorage.setItem("accounts", JSON.stringify(getAllAccounts()));
     };
 
     // Преобразование строки меток в массив объектов
     const parseLabels = (labelsString: string): AccountLabel[] => {
-        if (!labelsString.trim()) return [];
+        if (!labelsString) return [];
+        
+        if (parseLabelsCache.has(labelsString)) {
+            return parseLabelsCache.get(labelsString)!;
+        }
 
-        return labelsString
-            .split(";")
-            .map((label) => label.trim())
-            .filter((label) => label.length > 0)
-            .map((label) => ({ text: label }));
+        const result: AccountLabel[] = [];
+        const parts = labelsString.split(";");
+        
+        for (let i = 0; i < parts.length; i++) {
+            const trimmed = parts[i].trim();
+            if (trimmed.length > 0) {
+                result.push({ text: trimmed });
+            }
+        }
+        
+        parseLabelsCache.set(labelsString, result);
+        return result;
     };
 
     // Валидация формы
@@ -65,15 +95,15 @@ export const useAccountStore = defineStore("account", () => {
             login: "",
             password: "",
         };
-        accounts.value.push(newAccount);
+        accounts.value.set(newAccount.id, newAccount);
         saveAccounts();
         return newAccount;
     };
 
     // Обновление учетной записи
     const updateAccount = (id: string, data: AccountFormData): UpdateAccountResult => {
-        const accountIndex = accounts.value.findIndex((acc) => acc.id === id);
-        if (accountIndex === -1) return false;
+        const existingAccount = getAccount(id);
+        if (!existingAccount) return false;
 
         const errors = validateAccount(data);
         if (Object.keys(errors).length > 0) {
@@ -83,13 +113,13 @@ export const useAccountStore = defineStore("account", () => {
         const labels = parseLabels(data.labels);
         const password = data.recordType === "LDAP" ? null : data.password;
 
-        accounts.value[accountIndex] = {
-            ...accounts.value[accountIndex],
+        accounts.value.set(id, {
+            ...existingAccount,
             labels,
             recordType: data.recordType,
             login: data.login,
             password,
-        };
+        });
 
         saveAccounts();
         return { success: true };
@@ -97,29 +127,47 @@ export const useAccountStore = defineStore("account", () => {
 
     // Удаление учетной записи
     const removeAccount = (id: string): void => {
-        const index = accounts.value.findIndex((acc) => acc.id === id);
-        if (index !== -1) {
-            accounts.value.splice(index, 1);
+        if (hasAccount(id)) {
+            accounts.value.delete(id);
             saveAccounts();
         }
     };
 
     // Получение данных формы для редактирования
     const getFormData = (id: string): AccountFormData | null => {
-        const account = accounts.value.find((acc) => acc.id === id);
+        const account = getAccount(id);
         if (!account) return null;
 
+        let labelsString = "";
+        const labels = account.labels;
+        const labelsLength = labels.length;
+        
+        if (labelsLength > 0) {
+            labelsString = labels[0].text;
+            for (let i = 1; i < labelsLength; i++) {
+                labelsString += "; " + labels[i].text;
+            }
+        }
+
         return {
-            labels: account.labels.map((label) => label.text).join("; "),
+            labels: labelsString,
             recordType: account.recordType,
             login: account.login,
-            password: account.password || "",
+            password: account.password ?? "",
         };
     };
 
     return {
+        // Основные данные
         accounts,
-        accountsCount,
+        
+        // Helper методы для работы с Map
+        getAccount,
+        getAllAccounts,
+        getAccountsCount,
+        hasAccount,
+        
+        // CRUD операции
         loadAccounts,
         saveAccounts,
         addAccount,
