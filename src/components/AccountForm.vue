@@ -58,6 +58,7 @@
                                         hide-details
                                         placeholder="Введите метки"
                                         :maxlength="50"
+                                        @blur="save(account.id)"
                                     />
                                 </v-col>
 
@@ -69,6 +70,7 @@
                                         density="compact"
                                         hide-details
                                         :items="recordTypes"
+                                        @blur="save(account.id)"
                                     />
                                 </v-col>
 
@@ -81,6 +83,7 @@
                                         hide-details
                                         placeholder="Введите логин"
                                         :maxlength="100"
+                                        @blur="save(account.id)"
                                     />
                                 </v-col>
 
@@ -95,6 +98,7 @@
                                         hide-details
                                         placeholder="Введите пароль"
                                         :maxlength="100"
+                                        @blur="save(account.id)"
                                     >
                                         <template #append-inner>
                                             <v-icon
@@ -141,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, onMounted } from "vue";
+import { reactive, computed, onMounted, watch } from "vue";
 import { useAccountStore } from "@/stores/accountStore";
 import type { AccountFormData } from "@/types/account";
 
@@ -182,14 +186,37 @@ const addNewAccount = () => {
     passwordVisible[newAccount.id] = false;
 };
 
+// Сохранение
+const save = (id: string) => {
+    const data = formData[id];
+    if (!data) return;
+
+    accountStore.updateAccount(id, data);
+};
+
 // Переключение видимости пароля
 const togglePasswordVisibility = (id: string) => {
     passwordVisible[id] = !passwordVisible[id];
 };
 
+// Отслеживание изменений типа записи
+watch(
+    formData,
+    (newFormData) => {
+        Object.keys(newFormData).forEach((id) => {
+            const data = newFormData[id];
+            if (data && data.recordType === "LDAP") {
+                data.password = "";
+                passwordVisible[id] = false;
+            }
+        });
+    },
+    { deep: true },
+);
 
 // Инициализация при монтировании
 onMounted(() => {
+    accountStore.loadAccounts();
     initializeFormData();
 });
 </script>
