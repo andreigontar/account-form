@@ -58,7 +58,7 @@
                                         hide-details
                                         placeholder="Введите метки"
                                         :maxlength="50"
-                                        @blur="save(account.id)"
+                                        @blur="validateAndSave(account.id)"
                                     />
                                 </v-col>
 
@@ -66,11 +66,11 @@
                                 <v-col cols="2" class="pr-2">
                                     <v-select
                                         v-model="formData[account.id].recordType"
+                                        :items="recordTypes"
                                         variant="outlined"
                                         density="compact"
                                         hide-details
-                                        :items="recordTypes"
-                                        @blur="save(account.id)"
+                                        @update:model-value="validateAndSave(account.id)"
                                     />
                                 </v-col>
 
@@ -83,7 +83,9 @@
                                         hide-details
                                         placeholder="Введите логин"
                                         :maxlength="100"
-                                        @blur="save(account.id)"
+                                        :error="!!validationErrors[account.id]?.login"
+                                        :error-messages="validationErrors[account.id]?.login"
+                                        @blur="validateAndSave(account.id)"
                                     />
                                 </v-col>
 
@@ -98,7 +100,9 @@
                                         hide-details
                                         placeholder="Введите пароль"
                                         :maxlength="100"
-                                        @blur="save(account.id)"
+                                        :error="!!validationErrors[account.id]?.password"
+                                        :error-messages="validationErrors[account.id]?.password"
+                                        @blur="validateAndSave(account.id)"
                                     >
                                         <template #append-inner>
                                             <v-icon
@@ -120,6 +124,7 @@
                                         variant="text"
                                         color="error"
                                         size="small"
+                                        @click="removeAccount(account.id)"
                                     />
                                 </v-col>
                             </v-row>
@@ -147,12 +152,13 @@
 <script setup lang="ts">
 import { reactive, computed, onMounted, watch } from "vue";
 import { useAccountStore } from "@/stores/accountStore";
-import type { AccountFormData } from "@/types/account";
+import type { AccountFormData, ValidationErrors } from "@/types/account";
 
 const accountStore = useAccountStore();
 
 // Данные формы для каждой учетной записи
 const formData = reactive<Record<string, AccountFormData>>({});
+const validationErrors = reactive<Record<string, ValidationErrors>>({});
 const passwordVisible = reactive<Record<string, boolean>>({});
 
 // Опции для типа записи
@@ -183,15 +189,29 @@ const addNewAccount = () => {
         login: "",
         password: "",
     };
+    validationErrors[newAccount.id] = {};
     passwordVisible[newAccount.id] = false;
 };
 
-// Сохранение
-const save = (id: string) => {
+// Удаление учетной записи
+const removeAccount = (id: string) => {
+    accountStore.removeAccount(id);
+    delete formData[id];
+    delete validationErrors[id];
+    delete passwordVisible[id];
+};
+
+// Валидация и сохранение
+const validateAndSave = (id: string) => {
     const data = formData[id];
     if (!data) return;
 
-    accountStore.updateAccount(id, data);
+    const errors = accountStore.validateAccount(data);
+    validationErrors[id] = errors;
+
+    if (Object.keys(errors).length === 0) {
+        accountStore.updateAccount(id, data);
+    }
 };
 
 // Переключение видимости пароля

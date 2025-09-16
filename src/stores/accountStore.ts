@@ -35,6 +35,27 @@ export const useAccountStore = defineStore("account", () => {
             .map((label) => ({ text: label }));
     };
 
+    // Валидация формы
+    const validateAccount = (data: AccountFormData): Record<string, string> => {
+        const errors: Record<string, string> = {};
+
+        if (!data.login.trim()) {
+            errors.login = "Логин обязателен для заполнения";
+        } else if (data.login.length > 100) {
+            errors.login = "Логин не должен превышать 100 символов";
+        }
+
+        if (data.recordType === "Локальная") {
+            if (!data.password.trim()) {
+                errors.password = "Пароль обязателен для заполнения";
+            } else if (data.password.length > 100) {
+                errors.password = "Пароль не должен превышать 100 символов";
+            }
+        }
+
+        return errors;
+    };
+
     // Добавление новой учетной записи
     const addAccount = (): AccountRecord => {
         const newAccount: AccountRecord = {
@@ -45,6 +66,7 @@ export const useAccountStore = defineStore("account", () => {
             password: "",
         };
         accounts.value.push(newAccount);
+        saveAccounts();
         return newAccount;
     };
 
@@ -52,6 +74,11 @@ export const useAccountStore = defineStore("account", () => {
     const updateAccount = (id: string, data: AccountFormData): UpdateAccountResult => {
         const accountIndex = accounts.value.findIndex((acc) => acc.id === id);
         if (accountIndex === -1) return false;
+
+        const errors = validateAccount(data);
+        if (Object.keys(errors).length > 0) {
+            return { success: false, errors };
+        }
 
         const labels = parseLabels(data.labels);
         const password = data.recordType === "LDAP" ? null : data.password;
@@ -66,6 +93,15 @@ export const useAccountStore = defineStore("account", () => {
 
         saveAccounts();
         return { success: true };
+    };
+
+    // Удаление учетной записи
+    const removeAccount = (id: string): void => {
+        const index = accounts.value.findIndex((acc) => acc.id === id);
+        if (index !== -1) {
+            accounts.value.splice(index, 1);
+            saveAccounts();
+        }
     };
 
     // Получение данных формы для редактирования
@@ -88,6 +124,8 @@ export const useAccountStore = defineStore("account", () => {
         saveAccounts,
         addAccount,
         updateAccount,
+        removeAccount,
         getFormData,
+        validateAccount,
     };
 });
